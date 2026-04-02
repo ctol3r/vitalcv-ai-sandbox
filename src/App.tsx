@@ -54,6 +54,7 @@ export default function App() {
     return [];
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [manualReviews, setManualReviews] = useState<string[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("theme") as "light" | "dark") || "light";
@@ -171,6 +172,10 @@ export default function App() {
     }
   ];
 
+  const handleRequestReview = (source: string) => {
+    setManualReviews(prev => [...prev, source]);
+  };
+
   const getTrustState = (data: NPIDataResponse): TrustState => {
     if (!data || !data.identity) {
       return {
@@ -180,9 +185,11 @@ export default function App() {
         sanctions: { source: "OIG/LEIE", state: "PENDING", details: "No data" },
         licensure: { source: "FSMB", state: "PENDING", details: "No data" },
         enrollment: { source: "PECOS", state: "PENDING", details: "No data" },
+        boardCertification: { source: "ABMS / NCCPA", state: "PENDING", details: "No data" },
+        deaRegistration: { source: "DEA / State CSR", state: "PENDING", details: "No data" },
       };
     }
-    return {
+    const baseState = {
       readinessScore: data.readinessScore,
       estimatedStart: "14-28 days", // Mocked as requested or derived
       identity: { 
@@ -204,8 +211,45 @@ export default function App() {
         source: "PECOS", 
         state: data.pecos.status.toUpperCase(), 
         details: data.pecos.enrolled ? "Medicare Enrolled" : "Enrollment Pending" 
+      },
+      boardCertification: {
+        source: "ABMS / NCCPA",
+        state: "CHECKED",
+        details: "Board certification verified."
+      },
+      deaRegistration: {
+        source: "DEA / State CSR",
+        state: "ACCESS REQUIRED",
+        details: "Requires institutional access to verify."
       }
     };
+
+    if (manualReviews.includes("Identity")) {
+      baseState.identity.state = "MANUAL REVIEW PENDING";
+      baseState.identity.details = "Escalated to credentialing team for manual verification.";
+    }
+    if (manualReviews.includes("Sanctions")) {
+      baseState.sanctions.state = "MANUAL REVIEW PENDING";
+      baseState.sanctions.details = "Escalated to credentialing team for manual verification.";
+    }
+    if (manualReviews.includes("Licensure")) {
+      baseState.licensure.state = "MANUAL REVIEW PENDING";
+      baseState.licensure.details = "Escalated to credentialing team for manual verification.";
+    }
+    if (manualReviews.includes("Board Certification")) {
+      baseState.boardCertification.state = "MANUAL REVIEW PENDING";
+      baseState.boardCertification.details = "Escalated to credentialing team for manual verification.";
+    }
+    if (manualReviews.includes("DEA Registration")) {
+      baseState.deaRegistration.state = "MANUAL REVIEW PENDING";
+      baseState.deaRegistration.details = "Escalated to credentialing team for manual verification.";
+    }
+    if (manualReviews.includes("Enrollment")) {
+      baseState.enrollment.state = "MANUAL REVIEW PENDING";
+      baseState.enrollment.details = "Escalated to credentialing team for manual verification.";
+    }
+
+    return baseState;
   };
 
   const demoNpis = ["1234567890", "1003000126", "9876543210"];
@@ -322,10 +366,7 @@ export default function App() {
                   value={npi}
                   onChange={(e) => {
                     setNpi(e.target.value.replace(/\D/g, "").slice(0, 10));
-                    setShowSuggestions(true);
                   }}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setShowSuggestions(false)}
                   placeholder="ENTER 10-DIGIT NPI"
                   className="w-full bg-transparent border-b-2 border-line py-4 px-2 text-2xl font-mono focus:outline-none focus:border-ink transition-colors placeholder:opacity-20 uppercase"
                 />
@@ -340,43 +381,6 @@ export default function App() {
                     <ArrowRight className="w-6 h-6" />
                   )}
                 </button>
-                
-                {/* Autocomplete Dropdown */}
-                <AnimatePresence>
-                  {showSuggestions && filteredSuggestions.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full left-0 w-full mt-2 bg-[var(--color-bg)] border border-line shadow-xl z-50 overflow-hidden text-left"
-                    >
-                      <div className="p-2 bg-ink/5 border-b border-line text-[10px] font-bold uppercase tracking-widest opacity-60">
-                        Suggested NPIs
-                      </div>
-                      <ul className="max-h-48 overflow-y-auto">
-                        {filteredSuggestions.map(suggestion => (
-                          <li
-                            key={suggestion}
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // Prevent input blur
-                              setNpi(suggestion);
-                              setShowSuggestions(false);
-                              handleSearch(null, suggestion);
-                            }}
-                            className="px-4 py-3 hover:bg-ink/5 cursor-pointer font-mono text-sm flex justify-between items-center transition-colors"
-                          >
-                            <span>{suggestion}</span>
-                            {recentSearches.includes(suggestion) ? (
-                              <span className="text-[9px] uppercase tracking-widest opacity-40 bg-ink/10 px-2 py-0.5 rounded-full">Recent</span>
-                            ) : (
-                              <span className="text-[9px] uppercase tracking-widest opacity-80 bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">Demo</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
                 
                 {error && <p className="text-xs text-red-500 mt-2 text-left absolute -bottom-6">{error}</p>}
               </form>

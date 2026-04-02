@@ -34,7 +34,7 @@ export default function ReadinessPreview({ npi, onClick }: ReadinessPreviewProps
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 opacity-60 font-mono">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 opacity-60 font-mono">
         <div className="border border-line p-3 bg-white/10 dark:bg-white/5">
           <div className="text-[8px] font-bold uppercase tracking-widest opacity-40 mb-1">Identity</div>
           <div className="text-[10px] font-bold">VERIFIED</div>
@@ -46,6 +46,14 @@ export default function ReadinessPreview({ npi, onClick }: ReadinessPreviewProps
         <div className="border border-line p-3 bg-white/10 dark:bg-white/5">
           <div className="text-[8px] font-bold uppercase tracking-widest opacity-40 mb-1">Licensure</div>
           <div className="text-[10px] font-bold">CHECKED</div>
+        </div>
+        <div className="border border-line p-3 bg-white/10 dark:bg-white/5">
+          <div className="text-[8px] font-bold uppercase tracking-widest opacity-40 mb-1">Board Cert</div>
+          <div className="text-[10px] font-bold">CHECKED</div>
+        </div>
+        <div className="border border-line p-3 bg-white/10 dark:bg-white/5">
+          <div className="text-[8px] font-bold uppercase tracking-widest opacity-40 mb-1">DEA Reg</div>
+          <div className="text-[10px] font-bold">PENDING</div>
         </div>
         <div className="border border-line p-3 bg-white/10 dark:bg-white/5">
           <div className="text-[8px] font-bold uppercase tracking-widest opacity-40 mb-1">Readiness</div>

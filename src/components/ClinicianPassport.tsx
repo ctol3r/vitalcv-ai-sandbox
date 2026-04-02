@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import SharePacketModal from "./SharePacketModal";
 
@@ -17,6 +17,8 @@ export interface TrustState {
   sanctions: TrustItem;
   licensure: TrustItem;
   enrollment: TrustItem;
+  boardCertification: TrustItem;
+  deaRegistration: TrustItem;
 }
 
 const container = {
@@ -40,10 +42,41 @@ interface ClinicianPassportProps {
   clinicianName?: string;
   error?: string | null;
   onRetry?: () => void;
+  onRequestReview?: (source: string) => void;
 }
 
-export default function ClinicianPassport({ trustState, npi, clinicianName, error, onRetry }: ClinicianPassportProps) {
+export default function ClinicianPassport({ trustState, npi, clinicianName, error, onRetry, onRequestReview }: ClinicianPassportProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState({
+    email: "doctor@example.com",
+    phone: "(555) 123-4567",
+    specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings."
+  });
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`clinician_profile_${npi}`);
+    if (saved) {
+      try {
+        setProfileData(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, [npi]);
+
+  const handleSaveProfile = () => {
+    localStorage.setItem(`clinician_profile_${npi}`, JSON.stringify(profileData));
+    setIsEditing(false);
+  };
+
+  const handleSendVerification = () => {
+    setEmailVerificationSent(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsEmailVerified(true);
+    }, 2000);
+  };
 
   if (error) {
     return (
@@ -127,32 +160,140 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
         </div>
       </section>
 
+      {/* Profile Details Section */}
+      <section className="border-b border-line pb-12">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold tracking-tight uppercase">Profile Information</h3>
+          <button 
+            onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+            className={cn(
+              "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
+              isEditing 
+                ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
+                : "border border-line hover:bg-ink/5 text-ink"
+            )}
+          >
+            {isEditing ? (
+              <>
+                <Save className="w-3 h-3" /> Save Changes
+              </>
+            ) : (
+              <>
+                <Edit2 className="w-3 h-3" /> Edit Profile
+              </>
+            )}
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Email Address</label>
+              {isEditing ? (
+                <input 
+                  type="email" 
+                  value={profileData.email}
+                  onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                  className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                  placeholder="Enter your email"
+                />
+              ) : (
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-mono">{profileData.email}</div>
+                  {isEmailVerified ? (
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-green-600 bg-green-600/10 px-2 py-1 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Verified
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 bg-amber-600/10 px-2 py-1 rounded-full flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Unverified
+                      </span>
+                      <button
+                        onClick={handleSendVerification}
+                        disabled={emailVerificationSent}
+                        className="text-[9px] font-bold uppercase tracking-widest text-ink/60 hover:text-ink underline underline-offset-2 disabled:opacity-50 disabled:no-underline"
+                      >
+                        {emailVerificationSent ? "Verification Sent" : "Send Verification"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Phone Number</label>
+              {isEditing ? (
+                <input 
+                  type="tel" 
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                  className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                  placeholder="Enter your phone number"
+                />
+              ) : (
+                <div className="text-sm font-mono">{profileData.phone}</div>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Specialty & Experience</label>
+            {isEditing ? (
+              <textarea 
+                value={profileData.specialtyDescription}
+                onChange={(e) => setProfileData({...profileData, specialtyDescription: e.target.value})}
+                className="w-full h-32 bg-transparent border border-line p-3 text-sm font-mono focus:outline-none focus:border-ink transition-colors resize-none"
+                placeholder="Describe your specialty and experience..."
+              />
+            ) : (
+              <div className="text-sm font-mono leading-relaxed">{profileData.specialtyDescription}</div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Grid Section */}
       <motion.div 
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-line border border-line"
       >
         <PassportCard 
           title="Identity" 
           icon={<User className="w-4 h-4" />} 
           data={trustState.identity} 
+          onRequestReview={() => onRequestReview?.("Identity")}
         />
         <PassportCard 
           title="Sanctions" 
           icon={<Shield className="w-4 h-4" />} 
           data={trustState.sanctions} 
+          onRequestReview={() => onRequestReview?.("Sanctions")}
         />
         <PassportCard 
           title="Licensure" 
           icon={<FileCheck className="w-4 h-4" />} 
           data={trustState.licensure} 
+          onRequestReview={() => onRequestReview?.("Licensure")}
+        />
+        <PassportCard 
+          title="Board Certification" 
+          icon={<CheckCircle2 className="w-4 h-4" />} 
+          data={trustState.boardCertification} 
+          onRequestReview={() => onRequestReview?.("Board Certification")}
+        />
+        <PassportCard 
+          title="DEA Registration" 
+          icon={<Database className="w-4 h-4" />} 
+          data={trustState.deaRegistration} 
+          onRequestReview={() => onRequestReview?.("DEA Registration")}
         />
         <PassportCard 
           title="Enrollment" 
           icon={<Activity className="w-4 h-4" />} 
           data={trustState.enrollment} 
+          onRequestReview={() => onRequestReview?.("Enrollment")}
         />
       </motion.div>
 
@@ -172,38 +313,56 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
   );
 }
 
-function PassportCard({ title, icon, data }: { title: string, icon: React.ReactNode, data: TrustItem }) {
-  const isVerified = data.state === "VERIFIED" || data.state === "CLEAR";
-  const isPending = data.state === "PENDING" || data.state === "CHECKED";
+function PassportCard({ title, icon, data, onRequestReview }: { title: string, icon: React.ReactNode, data: TrustItem, onRequestReview?: () => void }) {
+  const isVerified = data.state === "VERIFIED" || data.state === "CLEAR" || data.state === "CHECKED";
+  const isPending = data.state === "PENDING" || data.state === "MANUAL REVIEW PENDING";
+  const isAccessRequired = data.state === "ACCESS REQUIRED" || data.state === "UNAVAILABLE" || data.state === "NEEDS REVIEW";
 
   return (
     <motion.div 
       variants={item}
-      className="bg-bg p-6 space-y-6 hover:bg-ink/5 transition-colors group relative overflow-hidden"
+      className="bg-bg p-6 space-y-6 hover:bg-ink/5 transition-colors group relative overflow-hidden flex flex-col"
     >
       <div className="flex justify-between items-start">
         <div className="p-2 border border-line/10 group-hover:border-line/30 transition-colors">
           {icon}
         </div>
         <div className={cn(
-          "text-[10px] font-bold font-mono px-2 py-0.5 border",
-          isVerified ? "border-green-600/20 text-green-600/60 bg-green-600/5" :
-          isPending ? "border-amber-600/20 text-amber-600/60 bg-amber-600/5" :
+          "flex items-center gap-1.5 text-[10px] font-bold font-mono px-2 py-0.5 border rounded-full",
+          isVerified ? "border-green-600/20 text-green-600 dark:text-green-400 bg-green-600/5" :
+          isPending ? "border-amber-600/20 text-amber-600 dark:text-amber-400 bg-amber-600/5" :
+          isAccessRequired ? "border-red-600/20 text-red-600 dark:text-red-400 bg-red-600/5" :
           "border-line/20 opacity-40"
         )}>
+          {isVerified && <CheckCircle2 className="w-3 h-3" />}
+          {isPending && <Clock className="w-3 h-3" />}
+          {isAccessRequired && <AlertCircle className="w-3 h-3" />}
           {data.state}
         </div>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 flex-1">
         <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{title}</h3>
-        <div className="text-sm font-bold tracking-tight">{data.source}</div>
+        <div className="text-sm font-bold tracking-tight flex items-center gap-2">
+          {data.source}
+          {isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
+          {isPending && <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
+          {isAccessRequired && <AlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
+        </div>
       </div>
 
       <div className="pt-4 border-t border-line/5">
         <div className="text-[10px] font-mono opacity-60 break-all leading-relaxed">
           {data.details}
         </div>
+        {isAccessRequired && onRequestReview && (
+          <button 
+            onClick={onRequestReview}
+            className="mt-4 w-full border border-red-500/30 text-red-500 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500/10 transition-colors"
+          >
+            Trigger Manual Review
+          </button>
+        )}
       </div>
 
       {/* Decorative Infrastructure Elements */}

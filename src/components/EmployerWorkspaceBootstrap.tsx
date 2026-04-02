@@ -27,8 +27,10 @@ export default function EmployerWorkspaceBootstrap({ onComplete, orgId }: Employ
         headers: { "x-organization-id": orgId }
       });
       if (response.data.status === "active") {
+        if (response.data.name) {
+          setFormData(prev => ({ ...prev, name: response.data.name }));
+        }
         setState("done");
-        setTimeout(() => onComplete(orgId), 1000);
       }
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -48,7 +50,6 @@ export default function EmployerWorkspaceBootstrap({ onComplete, orgId }: Employ
         headers: { "x-organization-id": orgId }
       });
       setState("done");
-      setTimeout(() => onComplete(orgId), 1500);
     } catch (error: any) {
       setState("error");
       setErrorMsg(error.response?.data?.error || "Failed to bootstrap workspace.");
@@ -156,9 +157,19 @@ export default function EmployerWorkspaceBootstrap({ onComplete, orgId }: Employ
                 <CheckCircle2 className="w-8 h-8" />
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-4">
               <h3 className="text-xl font-bold tracking-tight uppercase">Workspace Active</h3>
-              <p className="text-xs font-mono opacity-40 uppercase tracking-widest">Redirecting to Review Console...</p>
+              <p className="text-sm opacity-80 font-mono">
+                {formData.name ? `${formData.name} has been successfully registered.` : "Your organization has been successfully registered."}
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                onClick={() => onComplete(orgId)}
+                className="bg-ink text-bg px-8 py-3 font-bold uppercase tracking-widest text-[10px] inline-flex items-center gap-2 hover:opacity-90 transition-all"
+              >
+                Go to Review Dashboard <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </motion.div>
         )}

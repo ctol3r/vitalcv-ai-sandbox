@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Activity, FileText, RefreshCw, ShieldAlert, Filter, Calendar, Download, Search } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Activity, FileText, RefreshCw, ShieldAlert, Filter, Calendar, Download, Search, ChevronDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 export interface ClinicianPacket {
@@ -20,6 +20,7 @@ export interface ClinicianPacket {
     status: "CHECKED" | "PENDING" | "ACCESS REQUIRED";
     details: string;
   }[];
+  internalNotes?: string;
 }
 
 export interface EmployerReviewProps {
@@ -60,20 +61,35 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
   // State for filters
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
-  const [specialtyFilter, setSpecialtyFilter] = useState<string>("All");
+  const [specialtyFilters, setSpecialtyFilters] = useState<string[]>([]);
+  const [isSpecialtyDropdownOpen, setIsSpecialtyDropdownOpen] = useState(false);
   const [dateRange, setDateRange] = useState<"All" | "Last 7 Days" | "Last 30 Days">("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+  const specialtyDropdownRef = useRef<HTMLDivElement>(null);
 
-  const hasActiveFilters = searchQuery !== "" || statusFilter !== "All" || specialtyFilter !== "All" || dateRange !== "All";
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (specialtyDropdownRef.current && !specialtyDropdownRef.current.contains(event.target as Node)) {
+        setIsSpecialtyDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "All" || specialtyFilters.length > 0 || dateRange !== "All";
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("All");
-    setSpecialtyFilter("All");
+    setSpecialtyFilters([]);
     setDateRange("All");
+    setCurrentPage(1);
   };
 
   // Mock packets if none provided in list mode (for demonstration)
-  const packets = props.packets || [
+  const defaultPackets: ClinicianPacket[] = [
     {
       clinicianName: props.clinicianName || "Dr. John Smith, MD",
       npi: props.npi || "1234567890",
@@ -86,7 +102,14 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
         identifiedGaps: "PECOS Enrollment status is PENDING.",
         timeline: "Estimated onboarding completion in 14 days.",
       },
-      sources: props.sources || [],
+      sources: props.sources || [
+        { name: "Identity", status: "CHECKED" as const, details: "NPPES Registry match confirmed." },
+        { name: "Sanctions", status: "PENDING" as const, details: "OIG/LEIE check in progress." },
+        { name: "Federal Exclusions", status: "PENDING" as const, details: "SAM.gov check in progress." },
+        { name: "State Board", status: "CHECKED" as const, details: "CA Medical Board license active." },
+        { name: "Board Certification", status: "CHECKED" as const, details: "ABMS certification verified." },
+        { name: "DEA Registration", status: "ACCESS REQUIRED" as const, details: "Requires institutional access to verify." }
+      ],
     },
     {
       clinicianName: "Dr. Sarah Chen, DO",
@@ -103,6 +126,10 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
       sources: [
         { name: "Identity", status: "CHECKED" as const, details: "NPPES Registry match confirmed." },
         { name: "Sanctions", status: "CHECKED" as const, details: "OIG/LEIE clear." },
+        { name: "Federal Exclusions", status: "CHECKED" as const, details: "SAM.gov clear. No active exclusions." },
+        { name: "State Board", status: "CHECKED" as const, details: "NY Medical Board license active and in good standing." },
+        { name: "Board Certification", status: "CHECKED" as const, details: "ABMS certification verified." },
+        { name: "DEA Registration", status: "CHECKED" as const, details: "DEA registration active." }
       ],
     },
     {
@@ -118,10 +145,65 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
         timeline: "Blocked until license renewal is verified.",
       },
       sources: [
+        { name: "Identity", status: "CHECKED" as const, details: "NPPES Registry match confirmed." },
         { name: "Licensure", status: "ACCESS REQUIRED" as const, details: "License expired on 2025-12-31." },
+        { name: "Federal Exclusions", status: "CHECKED" as const, details: "SAM.gov clear." },
+        { name: "State Board", status: "ACCESS REQUIRED" as const, details: "TX Medical Board requires manual verification of expired status." },
+        { name: "Board Certification", status: "CHECKED" as const, details: "ABMS certification verified." },
+        { name: "DEA Registration", status: "ACCESS REQUIRED" as const, details: "Requires institutional access to verify." }
       ],
     }
   ];
+
+  const [packets, setPackets] = useState<ClinicianPacket[]>(props.packets || defaultPackets);
+  const [selectedNpis, setSelectedNpis] = useState<string[]>([]);
+  const [expandedNpi, setExpandedNpi] = useState<string | null>(null);
+
+  // Automated Background Checks Simulation
+  useEffect(() => {
+    const pendingPackets = packets.filter(p => 
+      p.sources.some(s => s.status === "PENDING" && ["Sanctions", "Federal Exclusions", "NPDB"].includes(s.name))
+    );
+
+    if (pendingPackets.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setPackets(prevPackets => prevPackets.map(packet => {
+        const hasPendingChecks = packet.sources.some(s => s.status === "PENDING" && ["Sanctions", "Federal Exclusions", "NPDB"].includes(s.name));
+        if (!hasPendingChecks) return packet;
+
+        const updatedSources = packet.sources.map(source => {
+          if (source.status === "PENDING" && ["Sanctions", "Federal Exclusions", "NPDB"].includes(source.name)) {
+            return {
+              ...source,
+              status: "CHECKED" as const,
+              details: source.name === "Sanctions" ? "OIG/LEIE Exclusion List: No matches found." :
+                       source.name === "Federal Exclusions" ? "SAM.gov clear. No active exclusions." :
+                       "NPDB: No adverse actions reported."
+            };
+          }
+          return source;
+        });
+
+        // If all sources are now checked, we could potentially update the packet status
+        const allChecked = updatedSources.every(s => s.status === "CHECKED");
+
+        return {
+          ...packet,
+          sources: updatedSources,
+          status: allChecked ? "Ready" : packet.status
+        };
+      }));
+    }, 3000); // Simulate network delay for background checks
+
+    return () => clearTimeout(timer);
+  }, [packets]);
+
+  useEffect(() => {
+    if (props.packets) {
+      setPackets(props.packets);
+    }
+  }, [props.packets]);
 
   // Apply filters
   const filteredPackets = packets.filter(packet => {
@@ -132,7 +214,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
       }
     }
     if (statusFilter !== "All" && packet.status !== statusFilter) return false;
-    if (specialtyFilter !== "All" && packet.specialty !== specialtyFilter) return false;
+    if (specialtyFilters.length > 0 && !specialtyFilters.includes(packet.specialty)) return false;
     
     if (dateRange !== "All") {
       const packetDate = new Date(packet.submissionDate).getTime();
@@ -146,8 +228,68 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
     return true;
   });
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, specialtyFilters, dateRange]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredPackets.length / ITEMS_PER_PAGE);
+  const paginatedPackets = filteredPackets.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const toggleSelection = (npi: string) => {
+    setSelectedNpis(prev => prev.includes(npi) ? prev.filter(id => id !== npi) : [...prev, npi]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedNpis.length === filteredPackets.length && filteredPackets.length > 0) {
+      setSelectedNpis([]);
+    } else {
+      setSelectedNpis(filteredPackets.map(p => p.npi));
+    }
+  };
+
+  const handleBulkAction = (newStatus: ClinicianPacket["status"]) => {
+    setPackets(prev => prev.map(p => selectedNpis.includes(p.npi) ? { ...p, status: newStatus } : p));
+    setSelectedNpis([]);
+  };
+
+  const handleNoteChange = (npi: string, note: string) => {
+    setPackets(prev => prev.map(p => p.npi === npi ? { ...p, internalNotes: note } : p));
+  };
+
+  const simulateNewSubmission = () => {
+    const newNpi = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const newPacket: ClinicianPacket = {
+      clinicianName: `Dr. New Applicant, MD`,
+      npi: newNpi,
+      specialty: "Family Medicine",
+      status: "Pending",
+      submissionDate: new Date().toISOString(),
+      timeToStart: "14 Days",
+      synthesis: {
+        verifiedCredentials: "NPPES Identity confirmed.",
+        identifiedGaps: "Background checks in progress.",
+        timeline: "Awaiting automated background check results.",
+      },
+      sources: [
+        { name: "Identity", status: "CHECKED", details: "NPPES Registry match confirmed." },
+        { name: "Sanctions", status: "PENDING", details: "OIG/LEIE check in progress..." },
+        { name: "Federal Exclusions", status: "PENDING", details: "SAM.gov check in progress..." },
+        { name: "NPDB", status: "PENDING", details: "NPDB query submitted..." },
+        { name: "State Board", status: "CHECKED", details: "State Medical Board license active." },
+        { name: "Board Certification", status: "CHECKED", details: "ABMS certification verified." },
+        { name: "DEA Registration", status: "ACCESS REQUIRED", details: "Requires institutional access to verify." }
+      ]
+    };
+    setPackets(prev => [newPacket, ...prev]);
+  };
+
   // Extract unique specialties for the filter dropdown
-  const specialties = ["All", ...Array.from(new Set(packets.map(p => p.specialty)))];
+  const specialties = Array.from(new Set(packets.map(p => p.specialty)));
 
   // Render Single Packet View (Legacy)
   if (!isListMode) {
@@ -275,6 +417,13 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
           <h2 className="text-4xl font-bold tracking-tighter uppercase">Clinician Packets</h2>
           <p className="text-sm opacity-60 font-mono mt-2">Review and manage incoming readiness snapshots.</p>
         </div>
+        <button 
+          onClick={simulateNewSubmission}
+          className="bg-ink text-bg px-6 py-3 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 hover:opacity-90 transition-all"
+        >
+          <RefreshCw className="w-3 h-3" />
+          Simulate New Submission
+        </button>
       </div>
 
       {/* Search Bar */}
@@ -326,20 +475,53 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
             </select>
           </div>
 
-          {/* Specialty Filter */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="specialty-filter" className="text-[9px] font-bold uppercase tracking-widest opacity-40">Specialty</label>
-            <select 
-              id="specialty-filter"
-              value={specialtyFilter}
-              onChange={(e) => setSpecialtyFilter(e.target.value)}
-              className="bg-transparent border-b border-line py-2 text-xs font-mono focus:outline-none focus:border-ink transition-colors"
-              aria-label="Filter by specialty"
+          {/* Specialty Filter (Multi-Select) */}
+          <div className="flex flex-col gap-1 relative" ref={specialtyDropdownRef}>
+            <label className="text-[9px] font-bold uppercase tracking-widest opacity-40">Specialties</label>
+            <button
+              onClick={() => setIsSpecialtyDropdownOpen(!isSpecialtyDropdownOpen)}
+              className="flex items-center justify-between w-full bg-transparent border-b border-line py-2 text-xs font-mono focus:outline-none focus:border-ink transition-colors text-left"
+              aria-label="Filter by specialties"
             >
-              {specialties.map(spec => (
-                <option key={spec} value={spec}>{spec}</option>
-              ))}
-            </select>
+              <span className="truncate pr-4">
+                {specialtyFilters.length === 0 
+                  ? "All Specialties" 
+                  : `${specialtyFilters.length} Selected`}
+              </span>
+              <ChevronDown className="w-3 h-3 opacity-40 flex-shrink-0" />
+            </button>
+
+            {isSpecialtyDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg)] border border-line shadow-xl z-50 max-h-60 overflow-y-auto">
+                <div 
+                  className="px-3 py-2 text-xs font-mono cursor-pointer hover:bg-ink/5 flex items-center gap-2"
+                  onClick={() => setSpecialtyFilters([])}
+                >
+                  <div className="w-3 h-3 border border-line flex items-center justify-center">
+                    {specialtyFilters.length === 0 && <Check className="w-2 h-2" />}
+                  </div>
+                  All Specialties
+                </div>
+                {specialties.map(spec => (
+                  <div 
+                    key={spec}
+                    className="px-3 py-2 text-xs font-mono cursor-pointer hover:bg-ink/5 flex items-center gap-2"
+                    onClick={() => {
+                      if (specialtyFilters.includes(spec)) {
+                        setSpecialtyFilters(specialtyFilters.filter(s => s !== spec));
+                      } else {
+                        setSpecialtyFilters([...specialtyFilters, spec]);
+                      }
+                    }}
+                  >
+                    <div className="w-3 h-3 border border-line flex items-center justify-center">
+                      {specialtyFilters.includes(spec) && <Check className="w-2 h-2" />}
+                    </div>
+                    {spec}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Date Range Filter */}
@@ -373,6 +555,43 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
         )}
       </div>
 
+      {/* Bulk Actions & Select All */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-ink/5 p-4 border border-line gap-4">
+        <div className="flex items-center gap-3">
+          <input 
+            type="checkbox" 
+            checked={filteredPackets.length > 0 && selectedNpis.length === filteredPackets.length}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 accent-ink cursor-pointer"
+            aria-label="Select all packets"
+          />
+          <span className="text-xs font-bold uppercase tracking-widest opacity-60">
+            {selectedNpis.length > 0 ? `${selectedNpis.length} Selected` : "Select All"}
+          </span>
+        </div>
+        
+        {selectedNpis.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-wrap items-center gap-3"
+          >
+            <button 
+              onClick={() => handleBulkAction("Ready")}
+              className="px-4 py-2 bg-green-600/10 text-green-600 dark:text-green-400 hover:bg-green-600/20 border border-green-500/30 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-3 h-3" /> Mark as Ready
+            </button>
+            <button 
+              onClick={() => handleBulkAction("Needs Review")}
+              className="px-4 py-2 bg-red-600/10 text-red-600 dark:text-red-400 hover:bg-red-600/20 border border-red-500/30 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <ShieldAlert className="w-3 h-3" /> Route for Manual Review
+            </button>
+          </motion.div>
+        )}
+      </div>
+
       {/* Packet List */}
       <div className="space-y-4">
         {filteredPackets.length === 0 ? (
@@ -380,17 +599,32 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
             <p className="text-xs font-mono uppercase">No packets match the current filters.</p>
           </div>
         ) : (
-          filteredPackets.map((packet) => (
+          paginatedPackets.map((packet) => (
             <motion.div 
               key={packet.npi}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="border border-line p-6 hover:bg-ink/5 transition-colors group cursor-pointer"
+              onClick={() => setExpandedNpi(expandedNpi === packet.npi ? null : packet.npi)}
             >
               <div className="flex flex-col md:flex-row justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-bold tracking-tight">{packet.clinicianName}</h3>
+                <div className="flex items-start gap-4">
+                  <div className="pt-1.5">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedNpis.includes(packet.npi)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelection(packet.npi);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 accent-ink cursor-pointer"
+                      aria-label={`Select ${packet.clinicianName}`}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-bold tracking-tight">{packet.clinicianName}</h3>
                     <span className={cn(
                       "flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border",
                       packet.status === "Ready" ? "border-green-500 text-green-600 dark:text-green-400 bg-green-500/10" :
@@ -411,6 +645,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
                     <span>Submitted: {new Date(packet.submissionDate).toLocaleDateString()}</span>
                   </div>
                 </div>
+                </div>
                 
                 <div className="flex items-center gap-6">
                   <div className="text-right hidden sm:block">
@@ -426,16 +661,101 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
                     >
                       <Download className="w-4 h-4" />
                     </button>
-                    <button className="p-3 bg-ink text-bg hover:opacity-90 transition-opacity">
-                      <ArrowRight className="w-4 h-4" />
+                    <button 
+                      className="p-3 bg-ink text-bg hover:opacity-90 transition-opacity"
+                      aria-label={expandedNpi === packet.npi ? "Collapse details" : "Expand details"}
+                    >
+                      <motion.div
+                        animate={{ rotate: expandedNpi === packet.npi ? 90 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.div>
                     </button>
                   </div>
                 </div>
               </div>
+
+              {/* Expanded Details View */}
+              {expandedNpi === packet.npi && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-8 pt-8 border-t border-line space-y-8"
+                  onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                >
+                  {/* AI Synthesis */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                        <Activity className="w-3 h-3" /> Verified Credentials
+                      </h4>
+                      <p className="font-mono text-xs leading-relaxed opacity-80">{packet.synthesis.verifiedCredentials}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                        <AlertCircle className="w-3 h-3" /> Identified Gaps
+                      </h4>
+                      <p className="font-mono text-xs leading-relaxed opacity-80">{packet.synthesis.identifiedGaps}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                        <Clock className="w-3 h-3" /> Timeline
+                      </h4>
+                      <p className="font-mono text-xs leading-relaxed opacity-80">{packet.synthesis.timeline}</p>
+                    </div>
+                  </div>
+
+                  {/* Internal Notes */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                      <FileText className="w-3 h-3" /> Internal Notes
+                    </h4>
+                    <textarea
+                      value={packet.internalNotes || ""}
+                      onChange={(e) => handleNoteChange(packet.npi, e.target.value)}
+                      placeholder="Add internal notes about this clinician..."
+                      className="w-full h-24 bg-transparent border border-line p-3 text-sm font-mono focus:outline-none focus:border-ink transition-colors resize-none"
+                      aria-label={`Internal notes for ${packet.clinicianName}`}
+                    />
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-line pt-6 mt-8">
+          <div className="text-[10px] font-bold uppercase tracking-widest opacity-40">
+            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredPackets.length)} of {filteredPackets.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-line hover:bg-ink/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <div className="text-xs font-mono px-4">
+              Page {currentPage} of {totalPages}
+            </div>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-line hover:bg-ink/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
