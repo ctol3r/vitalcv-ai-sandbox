@@ -56,6 +56,13 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
 
+  const [isEmployerEditing, setIsEmployerEditing] = useState(false);
+  const [employerData, setEmployerData] = useState({
+    employerName: "",
+    hiringManager: "",
+    contactEmail: ""
+  });
+
   useEffect(() => {
     const saved = localStorage.getItem(`clinician_profile_${npi}`);
     if (saved) {
@@ -63,11 +70,23 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
         setProfileData(JSON.parse(saved));
       } catch (e) {}
     }
+    
+    const savedEmployer = localStorage.getItem(`employer_profile_${npi}`);
+    if (savedEmployer) {
+      try {
+        setEmployerData(JSON.parse(savedEmployer));
+      } catch (e) {}
+    }
   }, [npi]);
 
   const handleSaveProfile = () => {
     localStorage.setItem(`clinician_profile_${npi}`, JSON.stringify(profileData));
     setIsEditing(false);
+  };
+
+  const handleSaveEmployerProfile = () => {
+    localStorage.setItem(`employer_profile_${npi}`, JSON.stringify(employerData));
+    setIsEmployerEditing(false);
   };
 
   const handleSendVerification = () => {
@@ -247,6 +266,77 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
               />
             ) : (
               <div className="text-sm font-mono leading-relaxed">{profileData.specialtyDescription}</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Employer Profile Information Section */}
+      <section className="border-b border-line pb-12">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold tracking-tight uppercase">Employer Profile Information</h3>
+          <button 
+            onClick={() => isEmployerEditing ? handleSaveEmployerProfile() : setIsEmployerEditing(true)}
+            className={cn(
+              "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
+              isEmployerEditing 
+                ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
+                : "border border-line hover:bg-ink/5 text-ink"
+            )}
+          >
+            {isEmployerEditing ? (
+              <>
+                <Save className="w-3 h-3" /> Save Changes
+              </>
+            ) : (
+              <>
+                <Edit2 className="w-3 h-3" /> Edit Profile
+              </>
+            )}
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Employer Name</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.employerName}
+                onChange={(e) => setEmployerData({...employerData, employerName: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter employer name"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.employerName || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Hiring Manager</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.hiringManager}
+                onChange={(e) => setEmployerData({...employerData, hiringManager: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter hiring manager"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.hiringManager || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Contact Email</label>
+            {isEmployerEditing ? (
+              <input 
+                type="email" 
+                value={employerData.contactEmail}
+                onChange={(e) => setEmployerData({...employerData, contactEmail: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter contact email"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.contactEmail || "Not specified"}</div>
             )}
           </div>
         </div>

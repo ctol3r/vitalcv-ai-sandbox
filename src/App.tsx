@@ -12,6 +12,7 @@ import ReadinessPreview from "@/src/components/ReadinessPreview";
 import LiveTrustConsole from "@/src/components/LiveTrustConsole";
 import EmployerWorkspaceBootstrap from "@/src/components/EmployerWorkspaceBootstrap";
 import EmployerNotifications from "@/src/components/EmployerNotifications";
+import CoverLetterGenerator from "@/src/components/CoverLetterGenerator";
 import { NPIDataResponse } from "@/src/types/npi";
 
 interface Source {
@@ -41,7 +42,7 @@ export default function App() {
     estimatedTimeToStart: string;
   } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [viewMode, setViewMode] = useState<"clinician" | "employer">("clinician");
+  const [viewMode, setViewMode] = useState<"clinician" | "employer" | "cover-letter">("clinician");
   const [showDemoEmployer, setShowDemoEmployer] = useState(false);
   const [showReviewRequest, setShowReviewRequest] = useState(false);
   const [workspaceActive, setWorkspaceActive] = useState(false);
@@ -288,11 +289,22 @@ export default function App() {
           >
             Review Request
           </button>
+          <button 
+            onClick={() => {
+              setViewMode("cover-letter");
+              setData(null);
+              setAnalysis(null);
+              setShowReviewRequest(false);
+            }}
+            className="hover:opacity-100 transition-opacity"
+          >
+            Cover Letter
+          </button>
           <a href="#" className="hover:opacity-100 transition-opacity">Explore</a>
         </nav>
         <div className="flex items-center gap-4">
           {(viewMode === "employer" || showDemoEmployer || showReviewRequest) && (
-            <EmployerNotifications />
+            <EmployerNotifications orgId={currentOrgId} />
           )}
           <button 
             onClick={toggleTheme}
@@ -318,7 +330,17 @@ export default function App() {
 
       <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-12">
         <AnimatePresence mode="wait">
-          {showReviewRequest ? (
+          {viewMode === "cover-letter" ? (
+            <motion.div
+              key="cover-letter"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full"
+            >
+              <CoverLetterGenerator onBack={() => setViewMode("clinician")} />
+            </motion.div>
+          ) : showReviewRequest ? (
             <motion.div
               key="review-request"
               initial={{ opacity: 0, y: 20 }}

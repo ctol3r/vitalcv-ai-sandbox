@@ -14,21 +14,20 @@ export interface Notification {
   npi?: string;
 }
 
-export default function EmployerNotifications() {
+export default function EmployerNotifications({ orgId }: { orgId: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // In a real app, this would come from an auth context
-  const orgId = "ORG-SUTTER-001";
-
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const fetchNotifications = async () => {
     try {
-      const res = await axios.get("/api/employer/notifications");
+      const res = await axios.get("/api/employer/notifications", {
+        headers: { "x-organization-id": orgId }
+      });
       setNotifications(res.data.notifications || []);
     } catch (err) {
       console.error("Failed to fetch notifications", err);
@@ -92,7 +91,9 @@ export default function EmployerNotifications() {
   const markAsRead = async (ids: string[]) => {
     try {
       setLoading(true);
-      await axios.post("/api/employer/notifications/read", { notificationIds: ids });
+      await axios.post("/api/employer/notifications/read", { notificationIds: ids }, {
+        headers: { "x-organization-id": orgId }
+      });
       setNotifications((prev) =>
         prev.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n))
       );
@@ -113,7 +114,9 @@ export default function EmployerNotifications() {
   const clearAllNotifications = async () => {
     try {
       setLoading(true);
-      await axios.delete("/api/employer/notifications");
+      await axios.delete("/api/employer/notifications", {
+        headers: { "x-organization-id": orgId }
+      });
       setNotifications([]);
     } catch (err) {
       console.error("Failed to clear notifications", err);

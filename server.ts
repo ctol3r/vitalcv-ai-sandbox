@@ -20,6 +20,11 @@ async function startServer() {
    * Explicitly exempts the public clinician NPI lookup wedge.
    */
   const organizationGuard = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Only apply organization guard to /api/ routes
+    if (!req.path.startsWith("/api/")) {
+      return next();
+    }
+
     // Public routes that do NOT require x-organization-id
     const publicRoutes = [
       "/api/health",
@@ -33,7 +38,7 @@ async function startServer() {
     // Check if the current path is in the public list
     const isPublicRoute = publicRoutes.some(route => req.path.startsWith(route));
 
-    if (isPublicRoute) {
+    if (isPublicRoute || req.method === 'OPTIONS') {
       return next();
     }
 

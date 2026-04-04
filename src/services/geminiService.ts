@@ -71,3 +71,48 @@ export async function analyzeReadiness(data: any) {
     };
   }
 }
+
+/**
+ * Generates a tailored cover letter using Gemini 2.0 Flash.
+ */
+export async function generateCoverLetter(resume: string, jobDescription: string) {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+  
+  const systemInstruction = `
+    You are an expert career consultant and professional writer specializing in healthcare and clinical roles. 
+    Your task is to generate a highly tailored, compelling, and professional cover letter.
+    
+    You must:
+    1. Extract relevant skills and experiences from the user's resume.
+    2. Identify key requirements and the company's "vibe" from the job description.
+    3. Craft a narrative that connects the candidate's qualifications to the specific job.
+    4. Use a professional yet engaging tone.
+    5. Ensure the letter is concise (3-4 paragraphs).
+    6. Focus on clinical excellence, patient care, and professional reliability.
+  `;
+
+  const prompt = `
+    Resume:
+    ${resume}
+    
+    Job Description:
+    ${jobDescription}
+    
+    Generate a tailored cover letter based on the provided resume and job description.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction,
+      },
+    });
+
+    return response.text || "Failed to generate cover letter.";
+  } catch (error) {
+    console.error("Gemini Cover Letter generation failed:", error);
+    throw new Error("Failed to generate cover letter. Please try again.");
+  }
+}
