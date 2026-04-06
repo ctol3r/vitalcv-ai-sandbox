@@ -1,15 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 :root {
-  --color-bg: #E4E3E0;
-  --color-ink: #141414;
-  --color-line: #141414;
+  /* Core Neutrals */
+  --color-ink: #111827;
+  --color-slate: #334155;
+  --color-mist: #E5E7EB;
+  --color-cloud: #F8FAFC;
+  --color-paper: #FFFFFF;
+
+  /* Action & Brand */
+  --color-primary: #1D4ED8;
+  --color-secondary: #0F766E;
+  --color-accent: #C084FC;
+
+  /* Semantic */
+  --color-verified: #15803D;
+  --color-caution: #B45309;
+  --color-critical: #B91C1C;
+  --color-info: #0369A1;
+  --color-neutral: #64748B;
+
+  /* Legacy mapping for existing components */
+  --color-bg: var(--color-cloud);
+  --color-line: var(--color-mist);
 }
 
 .dark {
-  --color-bg: #141414;
-  --color-ink: #E4E3E0;
-  --color-line: #333333;
+  /* Core Neutrals - Inverted */
+  --color-ink: #F8FAFC;
+  --color-slate: #94A3B8;
+  --color-mist: #334155;
+  --color-cloud: #0F172A;
+  --color-paper: #020617;
+
+  /* Action & Brand - Adjusted for dark mode */
+  --color-primary: #3B82F6;
+  --color-secondary: #14B8A6;
+  --color-accent: #D8B4FE;
+
+  /* Semantic - Adjusted for dark mode */
+  --color-verified: #22C55E;
+  --color-caution: #F59E0B;
+  --color-critical: #EF4444;
+  --color-info: #38BDF8;
+  --color-neutral: #94A3B8;
+
+  /* Legacy mapping for existing components */
+  --color-bg: var(--color-cloud);
+  --color-line: var(--color-mist);
 }
 
 @theme {
@@ -19,6 +58,21 @@
   --color-bg: var(--color-bg);
   --color-ink: var(--color-ink);
   --color-line: var(--color-line);
+  
+  --color-slate: var(--color-slate);
+  --color-mist: var(--color-mist);
+  --color-cloud: var(--color-cloud);
+  --color-paper: var(--color-paper);
+  
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  
+  --color-verified: var(--color-verified);
+  --color-caution: var(--color-caution);
+  --color-critical: var(--color-critical);
+  --color-info: var(--color-info);
+  --color-neutral: var(--color-neutral);
 }
 
 @layer base {
@@ -37,13 +91,16 @@
 }
 
 .data-row:hover {
-  background: var(--color-ink);
-  color: var(--color-bg);
+  background: var(--color-mist);
+}
+
+.dark .data-row:hover {
+  background: var(--color-mist);
 }
 
 .col-header {
-  font-family: 'Georgia', serif;
-  font-style: italic;
+  font-family: var(--font-sans);
+  font-weight: 600;
   font-size: 11px;
   opacity: 0.5;
   text-transform: uppercase;

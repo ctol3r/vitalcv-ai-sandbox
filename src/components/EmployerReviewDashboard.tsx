@@ -8,7 +8,9 @@ export interface ClinicianPacket {
   npi: string;
   specialty: string;
   status: "Pending" | "Ready" | "Needs Review";
+  employerStatus?: "Active" | "Pending Onboarding" | "Archived";
   submissionDate: string;
+  lastUpdated?: string;
   timeToStart: string;
   synthesis: {
     verifiedCredentials: string;
@@ -57,11 +59,33 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  const logDecisionToAuditTrail = async (packet: Partial<ClinicianPacket>, decisionType: string) => {
+    try {
+      const packetHash = btoa(JSON.stringify(packet)).substring(0, 32);
+      await fetch('/api/audit/decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          npi: packet.npi,
+          employerId: "current-employer-id",
+          decisionType,
+          packetHash,
+          timestamp: new Date().toISOString()
+        })
+      });
+      console.log(`Audit log: Decision '${decisionType}' logged for NPI ${packet.npi}`);
+    } catch (error) {
+      console.error("Failed to log decision to audit trail:", error);
+    }
+  };
   
   // State for filters
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [employerStatusFilter, setEmployerStatusFilter] = useState<string>("All");
   const [specialtyFilters, setSpecialtyFilters] = useState<string[]>([]);
+  const [specialtySearchQuery, setSpecialtySearchQuery] = useState<string>("");
   const [isSpecialtyDropdownOpen, setIsSpecialtyDropdownOpen] = useState(false);
   const [dateRange, setDateRange] = useState<"All" | "Last 7 Days" | "Last 30 Days">("All");
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,12 +102,14 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const hasActiveFilters = searchQuery !== "" || statusFilter !== "All" || specialtyFilters.length > 0 || dateRange !== "All";
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "All" || specialtyFilters.length > 0 || dateRange !== "All" || employerStatusFilter !== "All";
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("All");
+    setEmployerStatusFilter("All");
     setSpecialtyFilters([]);
+    setSpecialtySearchQuery("");
     setDateRange("All");
     setCurrentPage(1);
   };
@@ -95,7 +121,9 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
       npi: props.npi || "1234567890",
       specialty: "Internal Medicine",
       status: "Pending" as const,
+      employerStatus: "Pending Onboarding",
       submissionDate: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
       timeToStart: props.timeToStart || "14 Days",
       synthesis: props.synthesis || {
         verifiedCredentials: "NPPES Identity confirmed.",
@@ -116,7 +144,9 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
       npi: "1003000126",
       specialty: "Emergency Medicine",
       status: "Ready" as const,
+      employerStatus: "Active",
       submissionDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+      lastUpdated: new Date(Date.now() - 86400000 * 1).toISOString(),
       timeToStart: "0 Days",
       synthesis: {
         verifiedCredentials: "All primary sources verified and active.",
@@ -137,7 +167,9 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
       npi: "9876543210",
       specialty: "Cardiology",
       status: "Needs Review" as const,
+      employerStatus: "Archived",
       submissionDate: new Date(Date.now() - 86400000 * 10).toISOString(), // 10 days ago
+      lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(),
       timeToStart: "TBD",
       synthesis: {
         verifiedCredentials: "NPPES Identity confirmed.",
@@ -209,11 +241,12 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
   const filteredPackets = packets.filter(packet => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!packet.clinicianName.toLowerCase().includes(query) && !packet.npi.includes(query)) {
+      if (!packet.clinicianName.toLowerCase().includes(query) && !packet.npi.includes(query) && !packet.specialty.toLowerCase().includes(query)) {
         return false;
       }
     }
     if (statusFilter !== "All" && packet.status !== statusFilter) return false;
+    if (employerStatusFilter !== "All" && packet.employerStatus !== employerStatusFilter) return false;
     if (specialtyFilters.length > 0 && !specialtyFilters.includes(packet.specialty)) return false;
     
     if (dateRange !== "All") {
@@ -231,7 +264,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, specialtyFilters, dateRange]);
+  }, [searchQuery, statusFilter, employerStatusFilter, specialtyFilters, dateRange]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredPackets.length / ITEMS_PER_PAGE);
@@ -253,8 +286,28 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
   };
 
   const handleBulkAction = (newStatus: ClinicianPacket["status"]) => {
-    setPackets(prev => prev.map(p => selectedNpis.includes(p.npi) ? { ...p, status: newStatus } : p));
+    setPackets(prev => prev.map(p => {
+      if (selectedNpis.includes(p.npi)) {
+        logDecisionToAuditTrail(p, newStatus);
+        return { ...p, status: newStatus };
+      }
+      return p;
+    }));
     setSelectedNpis([]);
+  };
+
+  const handleBulkExport = () => {
+    const selectedData = packets.filter(p => selectedNpis.includes(p.npi));
+    const dataStr = JSON.stringify(selectedData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bulk-clinician-packets-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleNoteChange = (npi: string, note: string) => {
@@ -389,13 +442,22 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
         {/* Fixed Action Bar */}
         <div className="fixed bottom-0 left-0 right-0 bg-bg/80 backdrop-blur-md border-t border-line p-6 z-50">
           <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-4">
-            <button className="flex-1 bg-green-600 text-white py-4 font-bold uppercase tracking-widest hover:bg-green-700 transition-colors flex items-center justify-center gap-2 group">
+            <button 
+              onClick={() => logDecisionToAuditTrail(props, "Accept as Head Start")}
+              className="flex-1 bg-green-600 text-white py-4 font-bold uppercase tracking-widest hover:bg-green-700 transition-colors flex items-center justify-center gap-2 group"
+            >
               Accept as Head Start <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="flex-1 bg-ink text-bg py-4 font-bold uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+            <button 
+              onClick={() => logDecisionToAuditTrail(props, "Request Refresh")}
+              className="flex-1 bg-ink text-bg py-4 font-bold uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
               Request Refresh <RefreshCw className="w-4 h-4" />
             </button>
-            <button className="flex-1 border border-red-500/50 text-red-500 py-4 font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+            <button 
+              onClick={() => logDecisionToAuditTrail(props, "Route to Manual Review")}
+              className="flex-1 border border-red-500/50 text-red-500 py-4 font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+            >
               Route to Manual Review <ShieldAlert className="w-4 h-4" />
             </button>
           </div>
@@ -457,7 +519,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
           )}
         </div>
         
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-4 w-full">
           {/* Status Filter */}
           <div className="flex flex-col gap-1">
             <label htmlFor="status-filter" className="text-[9px] font-bold uppercase tracking-widest opacity-40">Status</label>
@@ -475,6 +537,23 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
             </select>
           </div>
 
+          {/* Employer Status Filter */}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="employer-status-filter" className="text-[9px] font-bold uppercase tracking-widest opacity-40">Employer Status</label>
+            <select 
+              id="employer-status-filter"
+              value={employerStatusFilter}
+              onChange={(e) => setEmployerStatusFilter(e.target.value)}
+              className="bg-transparent border-b border-line py-2 text-xs font-mono focus:outline-none focus:border-ink transition-colors"
+              aria-label="Filter by employer status"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Active">Active</option>
+              <option value="Pending Onboarding">Pending Onboarding</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+
           {/* Specialty Filter (Multi-Select) */}
           <div className="flex flex-col gap-1 relative" ref={specialtyDropdownRef}>
             <label className="text-[9px] font-bold uppercase tracking-widest opacity-40">Specialties</label>
@@ -483,7 +562,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
               className="flex items-center justify-between w-full bg-transparent border-b border-line py-2 text-xs font-mono focus:outline-none focus:border-ink transition-colors text-left"
               aria-label="Filter by specialties"
             >
-              <span className="truncate pr-4">
+              <span className={cn("truncate pr-4", specialtyFilters.length > 0 && isSpecialtyDropdownOpen ? "font-bold text-ink" : "")}>
                 {specialtyFilters.length === 0 
                   ? "All Specialties" 
                   : `${specialtyFilters.length} Selected`}
@@ -492,34 +571,54 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
             </button>
 
             {isSpecialtyDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg)] border border-line shadow-xl z-50 max-h-60 overflow-y-auto">
-                <div 
-                  className="px-3 py-2 text-xs font-mono cursor-pointer hover:bg-ink/5 flex items-center gap-2"
-                  onClick={() => setSpecialtyFilters([])}
-                >
-                  <div className="w-3 h-3 border border-line flex items-center justify-center">
-                    {specialtyFilters.length === 0 && <Check className="w-2 h-2" />}
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-bg)] border border-line shadow-xl z-50 max-h-60 flex flex-col">
+                <div className="sticky top-0 bg-[var(--color-bg)] border-b border-line p-2 z-10">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 opacity-40" aria-hidden="true" />
+                    <input
+                      type="text"
+                      placeholder="Search specialties..."
+                      value={specialtySearchQuery}
+                      onChange={(e) => setSpecialtySearchQuery(e.target.value)}
+                      className="w-full bg-transparent border border-line py-1.5 pl-7 pr-2 text-xs font-mono focus:outline-none focus:border-ink transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </div>
-                  All Specialties
                 </div>
-                {specialties.map(spec => (
+                <div className="overflow-y-auto">
                   <div 
-                    key={spec}
                     className="px-3 py-2 text-xs font-mono cursor-pointer hover:bg-ink/5 flex items-center gap-2"
-                    onClick={() => {
-                      if (specialtyFilters.includes(spec)) {
-                        setSpecialtyFilters(specialtyFilters.filter(s => s !== spec));
-                      } else {
-                        setSpecialtyFilters([...specialtyFilters, spec]);
-                      }
-                    }}
+                    onClick={() => setSpecialtyFilters([])}
                   >
                     <div className="w-3 h-3 border border-line flex items-center justify-center">
-                      {specialtyFilters.includes(spec) && <Check className="w-2 h-2" />}
+                      {specialtyFilters.length === 0 && <Check className="w-2 h-2" />}
                     </div>
-                    {spec}
+                    <span className={specialtyFilters.length === 0 ? "font-bold" : ""}>All Specialties</span>
                   </div>
-                ))}
+                  {specialties.filter(spec => spec.toLowerCase().includes(specialtySearchQuery.toLowerCase())).map(spec => (
+                    <div 
+                      key={spec}
+                      className="px-3 py-2 text-xs font-mono cursor-pointer hover:bg-ink/5 flex items-center gap-2"
+                      onClick={() => {
+                        if (specialtyFilters.includes(spec)) {
+                          setSpecialtyFilters(specialtyFilters.filter(s => s !== spec));
+                        } else {
+                          setSpecialtyFilters([...specialtyFilters, spec]);
+                        }
+                      }}
+                    >
+                      <div className="w-3 h-3 border border-line flex items-center justify-center">
+                        {specialtyFilters.includes(spec) && <Check className="w-2 h-2" />}
+                      </div>
+                      {spec}
+                    </div>
+                  ))}
+                  {specialties.filter(spec => spec.toLowerCase().includes(specialtySearchQuery.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-4 text-xs font-mono text-center opacity-40">
+                      No specialties found
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -587,6 +686,12 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
               className="px-4 py-2 bg-red-600/10 text-red-600 dark:text-red-400 hover:bg-red-600/20 border border-red-500/30 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
             >
               <ShieldAlert className="w-3 h-3" /> Route for Manual Review
+            </button>
+            <button 
+              onClick={handleBulkExport}
+              className="px-4 py-2 bg-ink/5 text-ink hover:bg-ink/10 border border-line text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <Download className="w-3 h-3" /> Bulk Export
             </button>
           </motion.div>
         )}
@@ -685,6 +790,24 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
                   className="mt-8 pt-8 border-t border-line space-y-8"
                   onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
                 >
+                  {/* Dates */}
+                  <div className="flex flex-wrap gap-6 border-b border-line pb-6">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Submission Date</span>
+                      <div className="font-mono text-xs">
+                        {new Date(packet.submissionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                    {packet.lastUpdated && (
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Last Updated</span>
+                        <div className="font-mono text-xs">
+                          {new Date(packet.lastUpdated).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* AI Synthesis */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-2">

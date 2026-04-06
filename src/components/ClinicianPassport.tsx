@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save, X, MessageSquare } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import SharePacketModal from "./SharePacketModal";
 
@@ -8,6 +8,7 @@ export interface TrustItem {
   source: string;
   state: string;
   details: string;
+  lastChecked?: string;
 }
 
 export interface TrustState {
@@ -51,6 +52,7 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
   const [profileData, setProfileData] = useState({
     email: "doctor@example.com",
     phone: "(555) 123-4567",
+    specialty: "Internal Medicine",
     specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings."
   });
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -59,9 +61,22 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
   const [isEmployerEditing, setIsEmployerEditing] = useState(false);
   const [employerData, setEmployerData] = useState({
     employerName: "",
+    employerWebsite: "",
+    employerAddress: "",
     hiringManager: "",
-    contactEmail: ""
+    contactEmail: "",
+    department: "",
+    hiringManagerTitle: "",
+    officePhone: "",
+    officeFax: "",
+    onboardingSpecialistName: "",
+    onboardingSpecialistEmail: "",
+    onboardingTasks: [] as { id: string, taskName: string, assigneeName: string, assigneeRole: string }[]
   });
+
+  const [internalNotes, setInternalNotes] = useState<{ id: string, author: string, timestamp: string, content: string }[]>([]);
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [currentAuthor, setCurrentAuthor] = useState("Reviewer"); // Mock current user
 
   useEffect(() => {
     const saved = localStorage.getItem(`clinician_profile_${npi}`);
@@ -77,6 +92,13 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
         setEmployerData(JSON.parse(savedEmployer));
       } catch (e) {}
     }
+
+    const savedNotes = localStorage.getItem(`internal_notes_${npi}`);
+    if (savedNotes) {
+      try {
+        setInternalNotes(JSON.parse(savedNotes));
+      } catch (e) {}
+    }
   }, [npi]);
 
   const handleSaveProfile = () => {
@@ -84,9 +106,93 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
     setIsEditing(false);
   };
 
+  const handleCancelProfile = () => {
+    const saved = localStorage.getItem(`clinician_profile_${npi}`);
+    if (saved) {
+      try {
+        setProfileData(JSON.parse(saved));
+      } catch (e) {}
+    } else {
+      setProfileData({
+        email: "doctor@example.com",
+        phone: "(555) 123-4567",
+        specialty: "Internal Medicine",
+        specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings."
+      });
+    }
+    setIsEditing(false);
+  };
+
   const handleSaveEmployerProfile = () => {
     localStorage.setItem(`employer_profile_${npi}`, JSON.stringify(employerData));
     setIsEmployerEditing(false);
+  };
+
+  const handleCancelEmployerProfile = () => {
+    const savedEmployer = localStorage.getItem(`employer_profile_${npi}`);
+    if (savedEmployer) {
+      try {
+        setEmployerData(JSON.parse(savedEmployer));
+      } catch (e) {}
+    } else {
+      setEmployerData({
+        employerName: "",
+        employerWebsite: "",
+        employerAddress: "",
+        hiringManager: "",
+        contactEmail: "",
+        department: "",
+        hiringManagerTitle: "",
+        officePhone: "",
+        officeFax: "",
+        onboardingSpecialistName: "",
+        onboardingSpecialistEmail: "",
+        onboardingTasks: []
+      });
+    }
+    setIsEmployerEditing(false);
+  };
+
+  const handleAddTask = () => {
+    setEmployerData(prev => ({
+      ...prev,
+      onboardingTasks: [
+        ...(prev.onboardingTasks || []),
+        { id: Math.random().toString(36).substring(7), taskName: "", assigneeName: "", assigneeRole: "" }
+      ]
+    }));
+  };
+
+  const handleUpdateTask = (id: string, field: string, value: string) => {
+    setEmployerData(prev => ({
+      ...prev,
+      onboardingTasks: (prev.onboardingTasks || []).map(task => 
+        task.id === id ? { ...task, [field]: value } : task
+      )
+    }));
+  };
+
+  const handleRemoveTask = (id: string) => {
+    setEmployerData(prev => ({
+      ...prev,
+      onboardingTasks: (prev.onboardingTasks || []).filter(task => task.id !== id)
+    }));
+  };
+
+  const handleAddNote = () => {
+    if (!newNoteContent.trim()) return;
+    
+    const newNote = {
+      id: Math.random().toString(36).substring(7),
+      author: currentAuthor || "Anonymous",
+      timestamp: new Date().toISOString(),
+      content: newNoteContent.trim()
+    };
+    
+    const updatedNotes = [newNote, ...internalNotes];
+    setInternalNotes(updatedNotes);
+    localStorage.setItem(`internal_notes_${npi}`, JSON.stringify(updatedNotes));
+    setNewNoteContent("");
   };
 
   const handleSendVerification = () => {
@@ -183,25 +289,35 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
       <section className="border-b border-line pb-12">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold tracking-tight uppercase">Profile Information</h3>
-          <button 
-            onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-            className={cn(
-              "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
-              isEditing 
-                ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
-                : "border border-line hover:bg-ink/5 text-ink"
+          <div className="flex items-center gap-2">
+            {isEditing && (
+              <button 
+                onClick={handleCancelProfile}
+                className="px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border border-line hover:bg-ink/5 text-ink"
+              >
+                <X className="w-3 h-3" /> Cancel
+              </button>
             )}
-          >
-            {isEditing ? (
-              <>
-                <Save className="w-3 h-3" /> Save Changes
-              </>
-            ) : (
-              <>
-                <Edit2 className="w-3 h-3" /> Edit Profile
-              </>
-            )}
-          </button>
+            <button 
+              onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+              className={cn(
+                "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
+                isEditing 
+                  ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
+                  : "border border-line hover:bg-ink/5 text-ink"
+              )}
+            >
+              {isEditing ? (
+                <>
+                  <Save className="w-3 h-3" /> Save Changes
+                </>
+              ) : (
+                <>
+                  <Edit2 className="w-3 h-3" /> Edit Profile
+                </>
+              )}
+            </button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -254,15 +370,29 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
                 <div className="text-sm font-mono">{profileData.phone}</div>
               )}
             </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Specialty</label>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={profileData.specialty}
+                  onChange={(e) => setProfileData({...profileData, specialty: e.target.value})}
+                  className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                  placeholder="Enter your specialty"
+                />
+              ) : (
+                <div className="text-sm font-mono">{profileData.specialty}</div>
+              )}
+            </div>
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Specialty & Experience</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Experience Description</label>
             {isEditing ? (
               <textarea 
                 value={profileData.specialtyDescription}
                 onChange={(e) => setProfileData({...profileData, specialtyDescription: e.target.value})}
                 className="w-full h-32 bg-transparent border border-line p-3 text-sm font-mono focus:outline-none focus:border-ink transition-colors resize-none"
-                placeholder="Describe your specialty and experience..."
+                placeholder="Describe your experience..."
               />
             ) : (
               <div className="text-sm font-mono leading-relaxed">{profileData.specialtyDescription}</div>
@@ -275,28 +405,38 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
       <section className="border-b border-line pb-12">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold tracking-tight uppercase">Employer Profile Information</h3>
-          <button 
-            onClick={() => isEmployerEditing ? handleSaveEmployerProfile() : setIsEmployerEditing(true)}
-            className={cn(
-              "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
-              isEmployerEditing 
-                ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
-                : "border border-line hover:bg-ink/5 text-ink"
+          <div className="flex items-center gap-2">
+            {isEmployerEditing && (
+              <button 
+                onClick={handleCancelEmployerProfile}
+                className="px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border border-line hover:bg-ink/5 text-ink"
+              >
+                <X className="w-3 h-3" /> Cancel
+              </button>
             )}
-          >
-            {isEmployerEditing ? (
-              <>
-                <Save className="w-3 h-3" /> Save Changes
-              </>
-            ) : (
-              <>
-                <Edit2 className="w-3 h-3" /> Edit Profile
-              </>
-            )}
-          </button>
+            <button 
+              onClick={() => isEmployerEditing ? handleSaveEmployerProfile() : setIsEmployerEditing(true)}
+              className={cn(
+                "px-4 py-2 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all",
+                isEmployerEditing 
+                  ? "bg-green-600/10 text-green-600 dark:text-green-400 border border-green-500/30 hover:bg-green-600/20" 
+                  : "border border-line hover:bg-ink/5 text-ink"
+              )}
+            >
+              {isEmployerEditing ? (
+                <>
+                  <Save className="w-3 h-3" /> Save Changes
+                </>
+              ) : (
+                <>
+                  <Edit2 className="w-3 h-3" /> Edit Employer Profile
+                </>
+              )}
+            </button>
+          </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Employer Name</label>
             {isEmployerEditing ? (
@@ -309,6 +449,54 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
               />
             ) : (
               <div className="text-sm font-mono">{employerData.employerName || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Employer Website URL</label>
+            {isEmployerEditing ? (
+              <input 
+                type="url" 
+                value={employerData.employerWebsite}
+                onChange={(e) => setEmployerData({...employerData, employerWebsite: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="https://example.com"
+              />
+            ) : (
+              <div className="text-sm font-mono">
+                {employerData.employerWebsite ? (
+                  <a href={employerData.employerWebsite.startsWith('http') ? employerData.employerWebsite : `https://${employerData.employerWebsite}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    {employerData.employerWebsite}
+                  </a>
+                ) : "Not specified"}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Employer Address</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.employerAddress}
+                onChange={(e) => setEmployerData({...employerData, employerAddress: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter full address"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.employerAddress || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Department</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.department}
+                onChange={(e) => setEmployerData({...employerData, department: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter department"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.department || "Not specified"}</div>
             )}
           </div>
           <div>
@@ -326,6 +514,20 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
             )}
           </div>
           <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Hiring Manager Title</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.hiringManagerTitle}
+                onChange={(e) => setEmployerData({...employerData, hiringManagerTitle: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter hiring manager title"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.hiringManagerTitle || "Not specified"}</div>
+            )}
+          </div>
+          <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Contact Email</label>
             {isEmployerEditing ? (
               <input 
@@ -339,6 +541,146 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
               <div className="text-sm font-mono">{employerData.contactEmail || "Not specified"}</div>
             )}
           </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Office Phone Number</label>
+            {isEmployerEditing ? (
+              <input 
+                type="tel" 
+                value={employerData.officePhone}
+                onChange={(e) => setEmployerData({...employerData, officePhone: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter office phone number"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.officePhone || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Office Fax Number</label>
+            {isEmployerEditing ? (
+              <input 
+                type="tel" 
+                value={employerData.officeFax}
+                onChange={(e) => setEmployerData({...employerData, officeFax: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter office fax number"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.officeFax || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Onboarding Specialist Name</label>
+            {isEmployerEditing ? (
+              <input 
+                type="text" 
+                value={employerData.onboardingSpecialistName}
+                onChange={(e) => setEmployerData({...employerData, onboardingSpecialistName: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter onboarding specialist name"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.onboardingSpecialistName || "Not specified"}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Onboarding Specialist Email</label>
+            {isEmployerEditing ? (
+              <input 
+                type="email" 
+                value={employerData.onboardingSpecialistEmail}
+                onChange={(e) => setEmployerData({...employerData, onboardingSpecialistEmail: e.target.value})}
+                className="w-full bg-transparent border-b border-line py-2 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                placeholder="Enter onboarding specialist email"
+              />
+            ) : (
+              <div className="text-sm font-mono">{employerData.onboardingSpecialistEmail || "Not specified"}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Onboarding Tasks Section */}
+        <div className="mt-8 pt-8 border-t border-line">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Team Onboarding Tasks</h4>
+            {isEmployerEditing && (
+              <button 
+                onClick={handleAddTask}
+                className="text-[10px] font-bold uppercase tracking-widest text-ink border border-line px-3 py-1.5 hover:bg-ink/5 transition-colors"
+              >
+                + Add Task
+              </button>
+            )}
+          </div>
+
+          {(!employerData.onboardingTasks || employerData.onboardingTasks.length === 0) ? (
+            <div className="text-sm font-mono opacity-40 italic">No onboarding tasks assigned.</div>
+          ) : (
+            <div className="space-y-4">
+              {employerData.onboardingTasks.map((task) => (
+                <div key={task.id} className="flex flex-col sm:flex-row gap-4 p-4 border border-line/50 bg-ink/5">
+                  {isEmployerEditing ? (
+                    <>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-[9px] font-bold uppercase tracking-widest opacity-40">Task Name</label>
+                        <input 
+                          type="text" 
+                          value={task.taskName}
+                          onChange={(e) => handleUpdateTask(task.id, 'taskName', e.target.value)}
+                          className="w-full bg-transparent border-b border-line py-1 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                          placeholder="e.g., Setup IT Equipment"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-[9px] font-bold uppercase tracking-widest opacity-40">Assignee Name</label>
+                        <input 
+                          type="text" 
+                          value={task.assigneeName}
+                          onChange={(e) => handleUpdateTask(task.id, 'assigneeName', e.target.value)}
+                          className="w-full bg-transparent border-b border-line py-1 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                          placeholder="e.g., Alex Johnson"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-[9px] font-bold uppercase tracking-widest opacity-40">Assignee Role</label>
+                        <input 
+                          type="text" 
+                          value={task.assigneeRole}
+                          onChange={(e) => handleUpdateTask(task.id, 'assigneeRole', e.target.value)}
+                          className="w-full bg-transparent border-b border-line py-1 text-sm font-mono focus:outline-none focus:border-ink transition-colors"
+                          placeholder="e.g., IT Support"
+                        />
+                      </div>
+                      <div className="flex items-end pb-1">
+                        <button 
+                          onClick={() => handleRemoveTask(task.id)}
+                          className="text-red-500 hover:text-red-600 p-2"
+                          aria-label="Remove task"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-1">Task</div>
+                        <div className="text-sm font-mono">{task.taskName || "Unnamed Task"}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-1">Assignee</div>
+                        <div className="text-sm font-mono">{task.assigneeName || "Unassigned"}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-1">Role</div>
+                        <div className="text-sm font-mono">{task.assigneeRole || "N/A"}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -386,6 +728,74 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
           onRequestReview={() => onRequestReview?.("Enrollment")}
         />
       </motion.div>
+
+      {/* Internal Notes Section */}
+      <section className="bg-bg border border-line p-8 space-y-6">
+        <div className="flex items-center justify-between border-b border-line pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-ink/5">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-widest">Internal Notes</h3>
+              <p className="text-[10px] font-mono opacity-60 mt-1">Collaborative employer review notes</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Add Note Form */}
+          <div className="space-y-3 bg-ink/5 p-4 border border-line/20">
+            <div className="flex items-center gap-4">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-60">Posting As:</label>
+              <input 
+                type="text" 
+                value={currentAuthor}
+                onChange={(e) => setCurrentAuthor(e.target.value)}
+                className="bg-transparent border-b border-line py-1 text-sm font-mono focus:outline-none focus:border-ink transition-colors w-48"
+                placeholder="Your Name"
+              />
+            </div>
+            <textarea 
+              value={newNoteContent}
+              onChange={(e) => setNewNoteContent(e.target.value)}
+              className="w-full bg-bg border border-line p-3 text-sm font-mono focus:outline-none focus:border-ink transition-colors min-h-[80px] resize-y"
+              placeholder="Add a note about this clinician's readiness..."
+            />
+            <div className="flex justify-end">
+              <button 
+                onClick={handleAddNote}
+                disabled={!newNoteContent.trim()}
+                className="px-4 py-2 bg-ink text-bg text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Post Note
+              </button>
+            </div>
+          </div>
+
+          {/* Notes List */}
+          <div className="space-y-4">
+            {internalNotes.length === 0 ? (
+              <div className="text-sm font-mono opacity-40 italic text-center py-4">No internal notes yet.</div>
+            ) : (
+              internalNotes.map((note) => (
+                <div key={note.id} className="p-4 border border-line/20 bg-bg space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="font-bold text-sm">{note.author}</div>
+                    <div className="text-[10px] font-mono opacity-40">
+                      {new Date(note.timestamp).toLocaleString('en-US', { 
+                        year: 'numeric', month: 'short', day: 'numeric', 
+                        hour: '2-digit', minute: '2-digit' 
+                      })}
+                    </div>
+                  </div>
+                  <div className="text-sm font-mono whitespace-pre-wrap opacity-80">{note.content}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Infrastructure Footer Note */}
       <div className="flex justify-between items-center py-4 border-t border-line/20">
@@ -442,8 +852,11 @@ function PassportCard({ title, icon, data, onRequestReview }: { title: string, i
       </div>
 
       <div className="pt-4 border-t border-line/5">
-        <div className="text-[10px] font-mono opacity-60 break-all leading-relaxed">
+        <div className="text-[10px] font-mono opacity-60 break-all leading-relaxed mb-2">
           {data.details}
+        </div>
+        <div className="text-[9px] font-mono opacity-40 uppercase tracking-widest">
+          Last Checked: {data.lastChecked ? new Date(data.lastChecked).toLocaleDateString() : 'N/A'}
         </div>
         {isAccessRequired && onRequestReview && (
           <button 
