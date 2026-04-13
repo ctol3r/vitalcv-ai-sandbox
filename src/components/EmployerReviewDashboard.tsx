@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Activity, FileText, RefreshCw, ShieldAlert, Filter, Calendar, Download, Search, ChevronDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Activity, FileText, RefreshCw, ShieldAlert, Filter, Calendar, Download, Search, ChevronDown, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
 export interface ClinicianPacket {
@@ -621,6 +621,27 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
                 </div>
               </div>
             )}
+            
+            {/* Selected Specialty Tags */}
+            {specialtyFilters.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {specialtyFilters.map(spec => (
+                  <span key={spec} className="inline-flex items-center gap-1 px-2 py-0.5 bg-ink/5 border border-line/20 text-[10px] font-mono">
+                    {spec}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSpecialtyFilters(specialtyFilters.filter(s => s !== spec));
+                      }}
+                      className="hover:text-red-500 transition-colors"
+                      aria-label={`Remove ${spec} filter`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Date Range Filter */}
@@ -679,7 +700,7 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
               onClick={() => handleBulkAction("Ready")}
               className="px-4 py-2 bg-green-600/10 text-green-600 dark:text-green-400 hover:bg-green-600/20 border border-green-500/30 text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
             >
-              <CheckCircle2 className="w-3 h-3" /> Mark as Ready
+              <CheckCircle2 className="w-3 h-3" /> Bulk Accept
             </button>
             <button 
               onClick={() => handleBulkAction("Needs Review")}

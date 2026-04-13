@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save, X, MessageSquare } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save, X, MessageSquare, Lock, XCircle, GitCompare } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import SharePacketModal from "./SharePacketModal";
 
@@ -9,6 +9,7 @@ export interface TrustItem {
   state: string;
   details: string;
   lastChecked?: string;
+  expirationDate?: string;
 }
 
 export interface TrustState {
@@ -53,7 +54,8 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
     email: "doctor@example.com",
     phone: "(555) 123-4567",
     specialty: "Internal Medicine",
-    specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings."
+    specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings.",
+    licenseExpirationDate: "2026-12-31"
   });
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
@@ -117,7 +119,8 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
         email: "doctor@example.com",
         phone: "(555) 123-4567",
         specialty: "Internal Medicine",
-        specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings."
+        specialtyDescription: "Board Certified in Internal Medicine with 10+ years of experience in acute care settings.",
+        licenseExpirationDate: "2026-12-31"
       });
     }
     setIsEditing(false);
@@ -706,8 +709,10 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
         <PassportCard 
           title="Licensure" 
           icon={<FileCheck className="w-4 h-4" />} 
-          data={trustState.licensure} 
+          data={{...trustState.licensure, expirationDate: profileData.licenseExpirationDate}} 
           onRequestReview={() => onRequestReview?.("Licensure")}
+          isEditing={isEditing}
+          onExpirationDateChange={(date) => setProfileData({...profileData, licenseExpirationDate: date})}
         />
         <PassportCard 
           title="Board Certification" 
@@ -813,10 +818,27 @@ export default function ClinicianPassport({ trustState, npi, clinicianName, erro
   );
 }
 
-function PassportCard({ title, icon, data, onRequestReview }: { title: string, icon: React.ReactNode, data: TrustItem, onRequestReview?: () => void }) {
+function PassportCard({ 
+  title, 
+  icon, 
+  data, 
+  onRequestReview,
+  isEditing,
+  onExpirationDateChange
+}: { 
+  title: string, 
+  icon: React.ReactNode, 
+  data: TrustItem, 
+  onRequestReview?: () => void,
+  isEditing?: boolean,
+  onExpirationDateChange?: (date: string) => void
+}) {
   const isVerified = data.state === "VERIFIED" || data.state === "CLEAR" || data.state === "CHECKED";
-  const isPending = data.state === "PENDING" || data.state === "MANUAL REVIEW PENDING";
-  const isAccessRequired = data.state === "ACCESS REQUIRED" || data.state === "UNAVAILABLE" || data.state === "NEEDS REVIEW";
+  const isPending = data.state === "PENDING";
+  const isAccessRequired = data.state === "ACCESS REQUIRED" || data.state === "UNAVAILABLE";
+  const isNeedsReview = data.state === "NEEDS REVIEW" || data.state === "MANUAL REVIEW PENDING";
+  const isBlocked = data.state === "BLOCKED" || data.state === "FAILED";
+  const isContradicted = data.state === "CONTRADICTED";
 
   return (
     <motion.div 
@@ -831,12 +853,19 @@ function PassportCard({ title, icon, data, onRequestReview }: { title: string, i
           "flex items-center gap-1.5 text-[10px] font-bold font-mono px-2 py-0.5 border rounded-full",
           isVerified ? "border-green-600/20 text-green-600 dark:text-green-400 bg-green-600/5" :
           isPending ? "border-amber-600/20 text-amber-600 dark:text-amber-400 bg-amber-600/5" :
-          isAccessRequired ? "border-red-600/20 text-red-600 dark:text-red-400 bg-red-600/5" :
+          isAccessRequired ? "border-blue-600/20 text-blue-600 dark:text-blue-400 bg-blue-600/5" :
+          isNeedsReview ? "border-orange-600/20 text-orange-600 dark:text-orange-400 bg-orange-600/5" :
+          isBlocked ? "border-red-600/20 text-red-600 dark:text-red-400 bg-red-600/5" :
+          isContradicted ? "border-purple-600/20 text-purple-600 dark:text-purple-400 bg-purple-600/5" :
           "border-line/20 opacity-40"
         )}>
           {isVerified && <CheckCircle2 className="w-3 h-3" />}
           {isPending && <Clock className="w-3 h-3" />}
-          {isAccessRequired && <AlertCircle className="w-3 h-3" />}
+          {isAccessRequired && <Lock className="w-3 h-3" />}
+          {isNeedsReview && <ShieldAlert className="w-3 h-3" />}
+          {isBlocked && <XCircle className="w-3 h-3" />}
+          {isContradicted && <GitCompare className="w-3 h-3" />}
+          {!isVerified && !isPending && !isAccessRequired && !isNeedsReview && !isBlocked && !isContradicted && <AlertCircle className="w-3 h-3" />}
           {data.state}
         </div>
       </div>
@@ -847,8 +876,30 @@ function PassportCard({ title, icon, data, onRequestReview }: { title: string, i
           {data.source}
           {isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
           {isPending && <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
-          {isAccessRequired && <AlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
+          {isAccessRequired && <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
+          {isNeedsReview && <ShieldAlert className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />}
+          {isBlocked && <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />}
+          {isContradicted && <GitCompare className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />}
         </div>
+        {title === "Licensure" && (
+          <div className="mt-2">
+            {isEditing ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-bold uppercase tracking-widest opacity-40">Expiration Date</label>
+                <input 
+                  type="date" 
+                  value={data.expirationDate || ""}
+                  onChange={(e) => onExpirationDateChange?.(e.target.value)}
+                  className="bg-transparent border-b border-line py-1 text-xs font-mono focus:outline-none focus:border-ink transition-colors"
+                />
+              </div>
+            ) : data.expirationDate && (
+              <div className="text-[10px] font-mono text-ink/70 mt-1">
+                Expires: <span className="font-bold">{new Date(data.expirationDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="pt-4 border-t border-line/5">
