@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save, X, MessageSquare, Lock, XCircle, GitCompare } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertCircle, User, Activity, FileCheck, Database, Share2, ShieldAlert, RefreshCw, Edit2, Save, X, MessageSquare, Lock, XCircle, GitCompare, ShieldCheck } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import SharePacketModal from "./SharePacketModal";
 
@@ -833,7 +833,8 @@ function PassportCard({
   isEditing?: boolean,
   onExpirationDateChange?: (date: string) => void
 }) {
-  const isVerified = data.state === "VERIFIED" || data.state === "CLEAR" || data.state === "CHECKED";
+  const isVerified = data.state === "VERIFIED";
+  const isChecked = data.state === "CLEAR" || data.state === "CHECKED";
   const isPending = data.state === "PENDING";
   const isAccessRequired = data.state === "ACCESS REQUIRED" || data.state === "UNAVAILABLE";
   const isNeedsReview = data.state === "NEEDS REVIEW" || data.state === "MANUAL REVIEW PENDING";
@@ -851,7 +852,8 @@ function PassportCard({
         </div>
         <div className={cn(
           "flex items-center gap-1.5 text-[10px] font-bold font-mono px-2 py-0.5 border rounded-full",
-          isVerified ? "border-green-600/20 text-green-600 dark:text-green-400 bg-green-600/5" :
+          isVerified ? "border-teal-600/20 text-teal-600 dark:text-teal-400 bg-teal-600/5" :
+          isChecked ? "border-green-600/20 text-green-600 dark:text-green-400 bg-green-600/5" :
           isPending ? "border-amber-600/20 text-amber-600 dark:text-amber-400 bg-amber-600/5" :
           isAccessRequired ? "border-blue-600/20 text-blue-600 dark:text-blue-400 bg-blue-600/5" :
           isNeedsReview ? "border-orange-600/20 text-orange-600 dark:text-orange-400 bg-orange-600/5" :
@@ -859,13 +861,14 @@ function PassportCard({
           isContradicted ? "border-purple-600/20 text-purple-600 dark:text-purple-400 bg-purple-600/5" :
           "border-line/20 opacity-40"
         )}>
-          {isVerified && <CheckCircle2 className="w-3 h-3" />}
+          {isVerified && <ShieldCheck className="w-3 h-3" />}
+          {isChecked && <CheckCircle2 className="w-3 h-3" />}
           {isPending && <Clock className="w-3 h-3" />}
           {isAccessRequired && <Lock className="w-3 h-3" />}
           {isNeedsReview && <ShieldAlert className="w-3 h-3" />}
           {isBlocked && <XCircle className="w-3 h-3" />}
           {isContradicted && <GitCompare className="w-3 h-3" />}
-          {!isVerified && !isPending && !isAccessRequired && !isNeedsReview && !isBlocked && !isContradicted && <AlertCircle className="w-3 h-3" />}
+          {!isVerified && !isChecked && !isPending && !isAccessRequired && !isNeedsReview && !isBlocked && !isContradicted && <AlertCircle className="w-3 h-3" />}
           {data.state}
         </div>
       </div>
@@ -874,7 +877,8 @@ function PassportCard({
         <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{title}</h3>
         <div className="text-sm font-bold tracking-tight flex items-center gap-2">
           {data.source}
-          {isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
+          {isVerified && <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+          {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
           {isPending && <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
           {isAccessRequired && <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />}
           {isNeedsReview && <ShieldAlert className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />}
