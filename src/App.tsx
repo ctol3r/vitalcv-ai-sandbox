@@ -6,7 +6,7 @@ import { cn } from "@/src/lib/utils";
 import { analyzeReadiness } from "@/src/services/geminiService";
 import { fetchNPIData } from "@/src/services/npiService";
 import ReactMarkdown from "react-markdown";
-import ClinicianPassport, { TrustState } from "@/src/components/ClinicianPassport";
+import ClinicianPassport, { TrustState, TrustItem } from "@/src/components/ClinicianPassport";
 import EmployerReviewDashboard from "@/src/components/EmployerReviewDashboard";
 import ReadinessPreview from "@/src/components/ReadinessPreview";
 import LiveTrustConsole from "@/src/components/LiveTrustConsole";
@@ -190,27 +190,27 @@ export default function App() {
         deaRegistration: { source: "DEA / State CSR", state: "PENDING", details: "No data" },
       };
     }
-    const baseState = {
+    const baseState: TrustState = {
       readinessScore: data.readinessScore,
       estimatedStart: "14-28 days", // Mocked as requested or derived
       identity: { 
         source: "NPPES", 
-        state: data.identity.status.toUpperCase(), 
+        state: data.identity.status.toUpperCase() as TrustItem["state"], 
         details: `NPI: ${data.npi} | Enumerated: ${data.identity.enumerationDate}` 
       },
       sanctions: { 
         source: "OIG/LEIE", 
-        state: data.sanctions.status.toUpperCase(), 
+        state: data.sanctions.status.toUpperCase() as TrustItem["state"], 
         details: data.sanctions.exclusionStatus ? "Exclusion found" : "No exclusions found" 
       },
       licensure: { 
         source: "FSMB / State Board", 
-        state: data.licensure.status.toUpperCase(), 
+        state: data.licensure.status.toUpperCase() as TrustItem["state"], 
         details: `License: ${data.licensure.licenseNumber} (${data.licensure.state})` 
       },
       enrollment: { 
         source: "PECOS", 
-        state: data.pecos.status.toUpperCase(), 
+        state: data.pecos.status.toUpperCase() as TrustItem["state"], 
         details: data.pecos.enrolled ? "Medicare Enrolled" : "Enrollment Pending" 
       },
       boardCertification: {

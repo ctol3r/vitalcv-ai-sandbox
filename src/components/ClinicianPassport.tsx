@@ -6,7 +6,7 @@ import SharePacketModal from "./SharePacketModal";
 
 export interface TrustItem {
   source: string;
-  state: string;
+  state: "VERIFIED" | "CLEAR" | "CHECKED" | "PENDING" | "ACCESS REQUIRED" | "UNAVAILABLE" | "NEEDS REVIEW" | "MANUAL REVIEW PENDING" | "BLOCKED" | "FAILED" | "CONTRADICTED";
   details: string;
   lastChecked?: string;
   expirationDate?: string;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { Shield, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Activity, FileText, RefreshCw, ShieldAlert, Filter, Calendar, Download, Search, ChevronDown, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import Fuse from "fuse.js";
 import { cn } from "@/src/lib/utils";
 
 export interface ClinicianPacket {
@@ -238,13 +239,24 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
   }, [props.packets]);
 
   // Apply filters
-  const filteredPackets = packets.filter(packet => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      if (!packet.clinicianName.toLowerCase().includes(query) && !packet.npi.includes(query) && !packet.specialty.toLowerCase().includes(query)) {
-        return false;
-      }
-    }
+  let filteredPackets = packets;
+
+  if (searchQuery) {
+    const fuse = new Fuse(filteredPackets, {
+      keys: [
+        { name: 'clinicianName', weight: 2 },
+        { name: 'npi', weight: 2 },
+        { name: 'specialty', weight: 1 }
+      ],
+      threshold: 0.45, // More aggressive typo tolerance
+      ignoreLocation: true,
+      findAllMatches: true,
+      minMatchCharLength: 2,
+    });
+    filteredPackets = fuse.search(searchQuery).map(result => result.item);
+  }
+
+  filteredPackets = filteredPackets.filter(packet => {
     if (statusFilter !== "All" && packet.status !== statusFilter) return false;
     if (employerStatusFilter !== "All" && packet.employerStatus !== employerStatusFilter) return false;
     if (specialtyFilters.length > 0 && !specialtyFilters.includes(packet.specialty)) return false;
@@ -863,6 +875,28 @@ const EmployerReviewDashboard: React.FC<EmployerReviewProps> = (props) => {
                       className="w-full h-24 bg-transparent border border-line p-3 text-sm font-mono focus:outline-none focus:border-ink transition-colors resize-none"
                       aria-label={`Internal notes for ${packet.clinicianName}`}
                     />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); logDecisionToAuditTrail(packet, "Accept as Head Start"); }}
+                      className="flex-1 bg-green-600 text-white py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-green-700 transition-colors flex items-center justify-center gap-2 group"
+                    >
+                      Accept as Head Start <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); logDecisionToAuditTrail(packet, "Request Refresh"); }}
+                      className="flex-1 bg-ink text-bg py-3 text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                    >
+                      Request Refresh <RefreshCw className="w-3 h-3" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); logDecisionToAuditTrail(packet, "Route to Manual Review"); }}
+                      className="flex-1 border border-red-500/50 text-red-500 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      Route to Manual Review <ShieldAlert className="w-3 h-3" />
+                    </button>
                   </div>
                 </motion.div>
               )}
